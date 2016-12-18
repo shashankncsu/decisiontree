@@ -1,0 +1,137 @@
+library(plyr)
+library(data.tree)
+
+#Function to calculate the entropy of the table
+parent=function(train){
+  acc=0
+  unacc=0
+  s=ncol(train)
+  for(i in 1:nrow(train))
+    if(train[i,s]=="acc"){
+      acc=acc+1
+    }
+  unacc=nrow(train)-acc
+  entropy1=-1*((acc/nrow(train))*log2(acc/nrow(train)))
+  entropy2=-1*((unacc/nrow(train))*log2(unacc/nrow(train)))
+  if(is.finite(entropy1)==FALSE && is.finite(entropy2)==TRUE)
+  {
+    return(entropy2)
+    
+  }else if(is.finite(entropy1)==TRUE && is.finite(entropy2)==FALSE)
+  {
+    return(entropy1)
+    
+  }else if(is.finite(entropy1)==TRUE && is.finite(entropy2)==TRUE)
+  {
+    return(entropy1+entropy2)
+    
+  }else(is.finite(entropy1)==FALSE && is.finite(entropy2)==FALSE)
+  {
+    return(0)
+  }
+}
+
+
+#Function to calculate the information gain, it contains the entropy as the nested function.
+descisontree=function(train,lop,a)
+{
+  data=list()
+  en=list()
+  total=0
+  uniq <- unique(unlist(lop))
+  data= split(train[ ,names(train), drop = TRUE],train[ ,a], drop = TRUE)
+  for (i in 1:length(uniq)){     
+    en[[i]]=parent(data[[i]])}
+  for (i in 1:length(uniq)){
+    total=total+(nrow(data[[i]])/nrow(train))*en[[i]]}
+  entropy=parent(train)
+  gain=entropy-total
+  return(gain)
+}
+
+#Function to returns the attribute with the highest information gain
+maxentropy=function(train)
+{
+  tgain=list()
+  e=ncol(train)
+  e=e-1
+  a=names(train)
+  lop=list()
+  for(i in 1:e){
+    lop[[i]]=train[,i]
+  }
+  for(i in 1:e) {
+    tgain[[i]]=descisontree(train,lop[[i]],a[i])}
+  ntgain=as.numeric(tgain)
+  win=max(ntgain)
+  q=which(ntgain==win)
+  name=colnames(train[q])
+  full=list(win,q,name)
+  return(full)
+}
+
+
+#Function that splits the data on the best attribute and removes that corresponding column for further analysis
+checking1=function(train,u)
+{
+  e=ncol(train)
+  e=e-1
+  data=list()
+  ind=grep("u", colnames(train))
+  lop=train[,ind]
+  uniq <- unique(lop)
+  data= split(train[ ,names(train)!=u, drop = FALSE],train[,u], drop = TRUE)      
+   return(data)
+}
+
+#Recursive nested function to build the tree. The stopping condition is to check the purity of the leaf
+Trainit <- function(tree, train){
+  
+  tree$obsCount <- nrow(train)
+  
+  
+  if (length(unique(train[,ncol(train)])) == 1) {
+     child <- tree$AddChild(unique(train[,ncol(train)]))
+    tree$feature <- tail(names(train), 1)
+    child$obsCount <- nrow(train)
+    
+  } else {
+    
+    entrop <- maxentropy(train)
+    feature <- entrop[[3]]
+    tree$feature <- feature
+    
+    children <- checking1(train,feature)
+    
+    for(i in 1:length(children)) {
+     
+    child <- tree$AddChild(names(children)[i])
+     Trainit(child, children[[i]])
+    }
+    
+  }
+  }
+
+#plotting the trained tree
+root <- Node$new("train")
+Trainit(root,train)
+plot(tree)
+
+#To apply the test data on the trained tree
+Predict <- function(root, features) {
+  if (root$children[[1]]$isLeaf) return (root$children[[1]]$name)
+  child <- root$children[[features[[root$feature]]]]
+  return (Predict(child, features))
+}
+
+truevalue=test[,7]
+test=test[,-7]
+Predictedvalue=0
+
+
+for(i in 1:nrow(test))
+{
+  Predictedvalue[i]=Predict(root,test[i,])
+}
+
+table(Predictedvalue,truevalue)
